@@ -1,74 +1,104 @@
-from itertools import groupby, chain
+from random import randrange
+import numpy as np
 
 NONE = '.'
 RED = 'R'
 BLACK = 'B'
 
-def diagonalsPos (matrix, cols, rows):
-	"""Get positive diagonals, going from bottom-left to top-right."""
-	for di in ([(j, i - j) for j in range(cols)] for i in range(cols + rows -1)):
-		yield [matrix[i][j] for i, j in di if i >= 0 and j >= 0 and i < cols and j < rows]
+ROW_COUNT = 6
+COLUMN_COUNT = 7
 
-def diagonalsNeg (matrix, cols, rows):
-	"""Get negative diagonals, going from top-left to bottom-right."""
-	for di in ([(j, i - cols + j + 1) for j in range(cols)] for i in range(cols + rows - 1)):
-		yield [matrix[i][j] for i, j in di if i >= 0 and j >= 0 and i < cols and j < rows]
+PLAYER = 1
+AI = 2
 
 class Game:
-	def __init__ (self, cols = 7, rows = 6, requiredToWin = 4):
+	def __init__ (self, cols = COLUMN_COUNT, rows = ROW_COUNT, requiredToWin = 4):
 		"""Create a new game."""
 		self.cols = cols
 		self.rows = rows
 		self.win = requiredToWin
-		self.board = [[NONE] * rows for _ in range(cols)]
+		self.board = np.zeros((ROW_COUNT,COLUMN_COUNT), dtype=int)
 
-	def insert (self, column, color):
+	def is_valid_location(self, column):
+		return self.board[0][column] == 0
+
+	def get_next_open_row(self, col):
+		for r in range(ROW_COUNT-1, 0, -1):
+			if self.board[r][col] == 0:
+				return r
+
+	def insert (self, row, column, color):
 		"""Insert the color in the given column."""
-		c = self.board[column]
-		if c[0] != NONE:
-			raise Exception('Column is full')
+		self.board[row][column] = color
 
-		i = -1
-		while c[i] != NONE:
-			i -= 1
-		c[i] = color
 
-		self.checkForWin()
-
-	def checkForWin (self):
+	def checkForWin (self, piece):
 		"""Check the current board for a winner."""
-		w = self.getWinner()
+		w = self.getWinner(piece)
 		if w:
-			self.printBoard()
-			raise Exception(w + ' won!')
+			return True
 
-	def getWinner (self):
+	def getWinner (self, piece):
 		"""Get the winner on the current board."""
-		lines = (
-			self.board, # columns
-			zip(*self.board), # rows
-			diagonalsPos(self.board, self.cols, self.rows), # positive diagonals
-			diagonalsNeg(self.board, self.cols, self.rows) # negative diagonals
-		)
+		# Check horizontal locations for win
+		for c in range(COLUMN_COUNT-3):
+			for r in range(ROW_COUNT):
+				if self.board[r][c] == piece and self.board[r][c+1] == piece and self.board[r][c+2] == piece and self.board[r][c+3] == piece:
+					return True
 
-		for line in chain(*lines):
-			for color, group in groupby(line):
-				if color != NONE and len(list(group)) >= self.win:
-					return color
+		# Check vertical locations for win
+		for c in range(COLUMN_COUNT):
+			for r in range(ROW_COUNT-3):
+				if self.board[r][c] == piece and self.board[r+1][c] == piece and self.board[r+2][c] == piece and self.board[r+3][c] == piece:
+					return True
+
+		# Check positively sloped diaganols
+		for c in range(COLUMN_COUNT-3):
+			for r in range(ROW_COUNT-3):
+				if self.board[r][c] == piece and self.board[r+1][c+1] == piece and self.board[r+2][c+2] == piece and self.board[r+3][c+3] == piece:
+					return True
+
+		# Check negatively sloped diaganols
+		for c in range(COLUMN_COUNT-3):
+			for r in range(3, ROW_COUNT):
+				if self.board[r][c] == piece and self.board[r-1][c+1] == piece and self.board[r-2][c+2] == piece and self.board[r-3][c+3] == piece:
+					return True
 
 	def printBoard (self):
 		"""Print the board."""
 		print('  '.join(map(str, range(self.cols))))
 		for y in range(self.rows):
-			print('  '.join(str(self.board[x][y]) for x in range(self.cols)))
+			print('  '.join(str(self.board[y][x]) for x in range(self.cols)))
 		print()
 
 
 if __name__ == '__main__':
 	g = Game()
-	turn = RED
-	while True:
+	game_over = False
+	turn = PLAYER
+	while not game_over:
 		g.printBoard()
-		row = input('{}\'s turn: '.format('Red' if turn == RED else 'Black'))
-		g.insert(int(row), turn)
-		turn = BLACK if turn == RED else RED
+		while turn == PLAYER:
+			row = input('{}\'s turn: '.format('Red' if turn == PLAYER else 'Black'))
+			if g.is_valid_location(int(row)):
+				r = g.get_next_open_row(int(row))
+				g.insert(r, int(row), turn)
+
+				if g.checkForWin(turn):
+					print("Red wins!!")
+					game_over = True
+				turn = AI if turn == PLAYER else PLAYER
+			else:
+				print("Pick valid row\n")
+
+		while turn == AI:
+			row = int(randrange(7))
+			if g.is_valid_location(int(row)):
+				r = g.get_next_open_row(row)
+				g.insert(r, int(row), turn)
+				if g.checkForWin(turn):
+					print("Black wins!!")
+					game_over = True
+				turn = AI if turn == PLAYER else PLAYER
+	if game_over:
+		exit()
